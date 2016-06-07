@@ -1,4 +1,4 @@
-CREATE TABLE rossman (
+CREATE TABLE storedata (
     id bigint PRIMARY KEY,
     store integer NOT NULL,
     dayofweek integer NOT NULL,
@@ -11,4 +11,4 @@ CREATE TABLE rossman (
     schoolholiday boolean
 );
 
-ALTER TABLE rossman OWNER TO lguser;
+ALTER TABLE storedata OWNER TO lguser;
