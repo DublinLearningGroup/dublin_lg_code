@@ -1,0 +1,266 @@
+---
+title: "Doing Survival Analysis in R"
+author: "Mick Cooney"
+date: "18 May 2016"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    fig_caption: yes
+    theme: cerulean
+    css: styles.css
+  pdf_document: default
+---
+
+<!--
+(Title:) Doing Survival Analysis in R
+
+Author: Mick Cooney
+
+Date: June 2016
+
+Abstract: This Rmarkdown document provides some basic introductory survival analysis in R.
+
+Keywords: survival analysis, intro
+
+-->
+
+```{r knit_opts, include = FALSE}
+knitr::opts_chunk$set(
+    tidy       = FALSE
+   ,cache      = FALSE
+   ,fig.width  = 11
+   ,fig.height = 8
+)
+
+library(data.table)
+library(ggplot2)
+library(scales)
+
+library(DBI)
+
+library(survival)
+
+library(GGally)
+
+options(width = 80)
+```
+
+---
+
+# Introduction
+
+This document illustrates some basic uses of survival analysis for
+modelling lapses on a book of life insurance policies.
+
+We assume a basic understanding of survival analysis. For further information on this topic, see [Jon Sedar's blogpost series](http://blog.applied.ai/survival-analysis-part1/).
+
+# Load Data
+
+```{r load_data, echo=TRUE}
+dt_protection <- readRDS('dt_protection.rds')
+dt_inforce    <- dt_protection[policy_status == 'inforce']
+
+head(dt_protection)
+
+head(dt_inforce)
+```
+
+# Create Kaplan-Meier Estimates
+
+First we build a few different KM estimates: for the overall dataset,
+for gender and for smoker.
+
+```{r basic_km_overall, echo=TRUE}
+lapse_km_overall <- survfit(Surv(durmaxrch, lapsed) ~ 1, data = dt_protection)
+
+ggsurv(lapse_km_overall, plot.cens = FALSE, CI = FALSE) +
+    expand_limits(y = 0) +
+    ggtitle("Kaplan-Meier Estimate for Life Policies")
+```
+
+Now we look at gender
+
+```{r basic_km_gender, echo=TRUE}
+lapse_km_gender <- survfit(Surv(durmaxrch, lapsed) ~ gender_life1, data = dt_protection)
+
+ggsurv(lapse_km_gender, plot.cens = FALSE) +
+    expand_limits(y = 0) +
+    ggtitle("Kaplan-Meier Estimate for Life Policies by Gender")
+```
+
+And finally smoker
+
+```{r basic_km_smoker, echo=TRUE}
+lapse_km_smoker <- survfit(Surv(durmaxrch, lapsed) ~ smoker_life1, data = dt_protection)
+
+ggsurv(lapse_km_smoker, plot.cens = FALSE) +
+    expand_limits(y = 0) +
+    ggtitle("Kaplan-Meier Estimate for Life Policies by Smoker")
+```
+
+
+# Build Basic Cox-PH Model
+
+We build some basic Cox-PH models and look at the output. We will also
+look at various splits of the data and see if we can induce the
+effects of time-varying parameters by splitting the data into groups.
+
+```{r basic_coxph, echo=TRUE}
+surv_formula <- formula(Surv(durmaxrch, lapsed) ~ gender_life1 + smoker_life1 +
+    mortgage_status + cluster_id + prem_ape)
+
+lapse_coxph <- coxph(surv_formula, data = dt_protection)
+
+summary(lapse_coxph)
+```
+
+```{r basic_coxph_plot, echo=TRUE}
+dt_baseline <- data.table(gender_life1 = 'F'
+                         ,smoker_life1 = 'N'
+                         ,mortgage_status = '00TERM'
+                         ,cluster_id      = 'n6_c0'
+                         ,prem_ape        = mean(dt_protection$prem_ape))
+
+ggsurv(survfit(lapse_coxph, newdata = dt_baseline)
+              ,plot.cens = FALSE, CI = FALSE) +
+    expand_limits(y = 0) +
+
+    ggtitle("Calculated Hazard Rate for Policy Using Cox-PH Model")
+```
+
+`ggsurv` does not seem to work for CoxPH objects like `plot` does in
+base R, so instead we can use the output of survfit directly to plot
+the survival curves - this might be worth trying to contribute to
+GGally at some point.
+
+```{r coxph_curve_plot, echo=TRUE}
+lapse_curves <- survfit(lapse_coxph, newdata = dt_inforce)$surv
+
+lapse_curves <- rbind(rep(1, ncol(lapse_curves))
+                     ,lapse_curves)
+
+colnames(lapse_curves) <- dt_inforce$policy_id
+
+ggplot(data = melt(lapse_curves[,1:10])) +
+    geom_line(aes(x = Var1 - 1, y = value, group = Var2, colour = Var2)) +
+    expand_limits(y = 0) +
+    xlab("In-force Month") +
+    ylab("Cumulative In-force Probability") +
+    guides(color = guide_legend(title = 'Policy Id')) +
+    ggtitle("Individual Lapse Curves for Sample of Policies")
+```
+
+
+
+## Look at Strata
+
+One aspect of the Cox-PH model that is also worth exploring is the use
+of 'stratified' analysis: this is where we use different baseline
+hazard rates for different groupings of the data based on some
+categorical data.
+
+How much of an impact does this have on our output?
+
+First we stratify the Cox-PH model by gender
+
+```{r sa_strata_gender, echo=TRUE, results='show'}
+lapse_strata_gender_coxph <- coxph(Surv(durmaxrch, lapsed) ~ strata(gender_life1) +
+                                       smoker_life1 + mortgage_status + cluster_id +
+                                       prem_ape
+                                  ,data = dt_protection)
+
+summary(lapse_strata_gender_coxph)
+
+## ggsurv(survfit(lapse_strata_gender_coxph, newdata = dt_baseline)
+##               ,plot.cens = FALSE, CI = FALSE) +
+##     expand_limits(y = 0) +
+##     ggtitle("Calculated Hazard Rate for Policy Using Cox-PH Model")
+
+```
+
+Now we stratify by smoker
+
+```{r sa_strata_smoker, echo=TRUE, results='show'}
+lapse_strata_smoker_coxph <- coxph(Surv(durmaxrch, lapsed) ~ gender_life1 +
+                                       strata(smoker_life1) + mortgage_status +
+                                       cluster_id + prem_ape
+                                  ,data = dt_protection)
+
+summary(lapse_strata_smoker_coxph)
+
+## ggsurv(survfit(lapse_strata_gender_coxph, newdata = dt_baseline)
+##               ,plot.cens = FALSE, CI = FALSE) +
+##     expand_limits(y = 0) +
+##     ggtitle("Calculated Hazard Rate for Policy Using Cox-PH Model")
+
+```
+
+Now we stratify by gender and smoker
+
+```{r sa_strata_both, echo=TRUE, results='show'}
+lapse_strata_both_coxph <- coxph(Surv(durmaxrch, lapsed) ~ strata(gender_life1) +
+                                       strata(smoker_life1) + mortgage_status +
+                                       cluster_id + prem_ape
+                                ,data = dt_protection)
+
+summary(lapse_strata_both_coxph)
+
+## ggsurv(survfit(lapse_strata_gender_coxph, newdata = dt_baseline)
+##               ,plot.cens = FALSE, CI = FALSE) +
+##     expand_limits(y = 0) +
+##     ggtitle("Calculated Hazard Rate for Policy Using Cox-PH Model")
+
+```
+
+
+
+# Time-Dependent Cox-PH by Data Splitting
+
+We also want to split each of the periods of time into blocks of 12
+months at a time and then run similar models on each one. The function
+`survSplit` does most of the heavy lifting on this.
+
+
+```{r rundata, echo=TRUE}
+dt_split <- survSplit(Surv(durmaxrch, lapsed) ~ .
+                     ,data = dt_protection
+                     ,cut = 12 * 1:35
+                     ,start   = 'start_month'
+                     ,episode = 'block_id'
+                      )
+setDT(dt_split)
+
+dt_split <- dt_split[, .(policy_id
+                        ,start_month
+                        ,stop_month  = durmaxrch
+                        ,lapsecol    = lapsed
+                        ,block_id)]
+
+dt_splitdata <- merge(dt_protection
+                     ,dt_split
+                     ,by = 'policy_id')
+
+dim(dt_splitdata)
+
+head(dt_splitdata)
+```
+
+Now that we have built our dataset to split out the different time
+blocks, I run the same CoxPH model on each separate block of data:
+
+```{r run_coxph_timeblock}
+timedata <- sapply(1:10, function(iterid) {
+    block_coxph <- coxph(Surv(start_month, stop_month, lapsecol) ~
+                             gender_life1 + smoker_life1 + mortgage_status +
+                             cluster_id + prem_ape
+                        ,data = dt_splitdata[block_id == iterid])
+
+    return(coef(block_coxph))
+})
+
+ggplot(data = melt(timedata)) +
+    geom_line(aes(x = Var2, y = value)) +
+    facet_wrap(~Var1, scales = 'free') +
+    expand_limits(y = 0)
+```
