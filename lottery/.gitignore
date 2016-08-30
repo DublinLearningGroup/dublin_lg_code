@@ -6,3 +6,4 @@ data/*.txt
 data/*.json
 data/*.html
 data/data/*
+data/*.xlsx

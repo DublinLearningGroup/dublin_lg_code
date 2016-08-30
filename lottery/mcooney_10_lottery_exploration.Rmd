@@ -1,0 +1,61 @@
+---
+title: "UK National Lottery Charitable Donations"
+author: "Mick Cooney"
+date: "28 August 2016"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    fig_caption: yes
+    theme: cerulean
+  pdf_document: default
+---
+
+<!--
+(Title:)
+
+Author: Mick Cooney
+
+Date: 2016
+
+Abstract:
+
+Keywords:
+
+-->
+
+```{r knit_opts, include = FALSE}
+knitr::opts_chunk$set(tidy = FALSE, cache = FALSE)
+
+library(data.table)
+library(dplyr)
+library(dtplyr)
+library(ggplot2)
+
+library(readr)
+library(feather)
+
+options(width = 90)
+```
+
+# Load Data
+
+```{r load_data, echo=TRUE}
+data_files <- dir("data/data/", pattern = '\\.csv', full.names = TRUE)
+
+lottery_dt <- rbindlist(lapply(data_files, fread))
+
+setnames(lottery_dt, tolower(names(lottery_dt)))
+
+lottery_dt[, announcement_date    := as.Date(announcement_date,    format = '%d/%m/%Y')]
+lottery_dt[, applicant_start_date := as.Date(applicant_start_date, format = '%d/%m/%Y')]
+lottery_dt[, decision_date        := as.Date(decision_date,        format = '%d/%m/%Y')]
+lottery_dt[, conv_current_award   := as.numeric(gsub("(\\d+) .*", "\\1", current_award))]
+
+str(lottery_dt)
+head(lottery_dt)
+glimpse(lottery_dt)
+```
+
+
+---
