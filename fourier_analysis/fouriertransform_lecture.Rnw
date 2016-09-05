@@ -1,0 +1,657 @@
+\documentclass[11pt]{beamer}
+
+\makeatletter
+\g@addto@macro\@verbatim\tiny
+\makeatother
+
+\usepackage{graphicx}
+\usepackage{eurosym}
+\usepackage{hyperref}
+
+\newcommand{\sinc}{\text{sinc }}
+
+
+\usetheme[compress]{Berlin}
+
+
+\title[Introduction to Fourier Analysis]{Introduction to Fourier Analysis}
+\author{Mick Cooney \\mickcooney@gmail.com}
+\date{8 December 2015}
+
+<<setoptions, include=TRUE, echo=FALSE, cache=FALSE, results='hide'>>=
+opts_knit$set(root.dir = ".")
+
+opts_chunk$set(fig.path = './');
+opts_chunk$set(fig.align = 'center');
+opts_chunk$set(out.width  = '11cm');
+opts_chunk$set(out.height =  '6cm');
+
+opts_chunk$set(size = 'tiny');
+
+set.seed(42);
+
+@
+
+<<init, echo=FALSE, cache=FALSE, results='hide', warning=FALSE, message=FALSE>>=
+dev_mode(TRUE);
+
+require(ggplot2);
+require(data.table);
+require(scales);
+require(gridExtra);
+
+
+source("custom_functions.R");
+@
+
+
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+
+
+%%%
+%%%
+%%% Section: Introduction and Periodic Functions
+%%%
+%%%
+
+\section{Introduction and Periodic Functions}
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}
+
+A function $f(t)$ is a \emph{periodic function of period $T$} if there exists
+a number $T > 0$
+
+\[ f(t + T) = f(t) \;\; \forall t. \]
+
+If there is such a number, then the smallest one for which the equation holds
+is known as the \emph{fundamental period} of the $f$.
+
+\vspace{3mm}
+
+Every integer multiple of the fundamental period is also a period:
+
+\[ f(t + nT) = f(t), \; n = 0, \pm 1, \pm 2, ... \]
+
+\end{frame}
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+Consider the function
+
+\[ f(t) = \cos 2 \pi t + \frac{1}{2} \cos 4 \pi t \]
+
+Visualising this:
+
+<<generating_data, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE, out.width='7cm', out.height='5cm'>>=
+
+f <- function(t) cos(2 * pi * t) + 0.5 * cos(4 * pi * t)
+
+t_seq <- seq(0, 4, by = 0.001);
+
+qplot(t_seq, f(t_seq), geom = 'line', xlab = expression(t), ylab = expression(f(t)), size = I(0.5));
+@
+
+\end{frame}
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+\begin{center}
+Is the sum of two periodic functions also periodic?
+
+\vspace{3mm}
+Mathematician? No.
+
+\vspace{3mm}
+Engineer? Yes.
+\end{center}
+
+\end{frame}
+
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+\[ f(t) = \cos t + \cos \sqrt{2} t \]
+
+<<periodic_function_sum, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE>>=
+
+f1 <- function(t) cos(t) + cos(1.4 * t)
+f2 <- function(t) cos(t) + cos(sqrt(2) * t)
+
+t_seq <- seq(-50, 50, by = 0.01);
+
+qplot(t_seq, f1(t_seq), geom = 'line', xlab = expression(t), ylab = expression(f(t)), colour = I('red'), size = I(0.4)) +
+    geom_line(aes(y = f2(t_seq)), colour = 'blue', size = 0.4);
+@
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]{Building Blocks}
+
+Consider the harmonic oscillator: mass on a spring or current in an LC circuit
+(no resistance)
+
+\vspace{3mm}
+
+State is described by a single sinusoid:
+
+\[ f(t) = A \, \sin (2 \pi \nu t + \phi),  \]
+
+where the parameters are \emph{amplitude} $A$, \emph{frequency} $\nu$, and
+\emph{phase} $\phi$.
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]{Building Blocks}
+
+Consider how temperature heats on a ring. Work via angle $\theta$
+
+\[ T(\theta) = \sum^N_{n=1} A_n \sin (n \theta + \phi) \]
+
+Time dependence is embedded in the co-efficients $A_n$.
+
+\vspace{3mm}
+
+More generally, use $\sin$ and $\cos$:
+
+\[ \frac{a_0}{2} + \sum^N_{n=1} \left(a_n \cos(2 \pi n t) + b_n \sin(2 \pi n t) \right). \]
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]{Building Blocks}
+
+Re-write using complex exponentials:
+
+\[ \sum^N_{n=-N} c_n \exp(2 \pi int) \]
+
+Co-efficients $c_n$ are complex, with $c_{-n} = \overline{c_n}$ and
+$|c_{-n}| = |c_n|$.
+
+\end{frame}
+
+
+
+%%%
+%%%
+%%% Section: Fourier Series
+%%%
+%%%
+
+\section{Fourier Series}
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]{Fourier Series}
+
+We can represent any function of period 1 (and later more general size of
+periods) as a \emph{Fourier series}:
+
+\[ f(t) = \sum^{\infty}_{n=-\infty} \hat{f}(n) \exp(2 \pi int) \]
+
+where
+
+\[ \hat{f}(n) = \int^1_0 exp(-2 \pi int) f(t) dt \]
+
+and so
+
+\[ \hat{f}(0) = \int^1_0 f(t) dt, \; \text{(average value of the function)} \]
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+Set of frequencies present in a signal is the \emph{spectrum} of the signal
+
+\vspace{3mm}
+
+Note that the spectrum is the frequencies --- not the values of $\hat{f}$
+at the frequencies, such as $\hat{f}(\pm 2)$.
+
+\vspace{3mm}
+
+The sequence of squared magnitudes
+
+\[ |\hat{f}(0)|^2, |\hat{f}(\pm 1)|^2, |\hat{f}(\pm 2)|^2, ... \]
+
+is the \emph{power spectrum} or \emph{energy spectrum}
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+If the period is $T$ instead of 1, we modify the series as follows:
+
+\[ f(t) = \sum^{\infty}_{n=-\infty} c_n \exp(2 \pi int / T) \]
+
+where the coefficients $c_n$ are given by
+
+\[ c_n = \frac{1}{T} \int^T_0 \exp(-2 \pi int / T) f(t) dt. \]
+
+Can also have limits from $-T/2$ to $T/2$
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+\[ f(t) = \cos 2 \pi t + \frac{1}{2} \cos 4 \pi t \]
+
+<<power_spectrum_1, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE>>=
+
+f <- function(t) cos(2 * pi * t) + 0.5 * cos(4 * pi * t)
+t_seq <- seq(0, 5, by = 0.01);
+
+f_seq <- f(t_seq);
+
+qplot(t_seq, f_seq, geom = 'line', size = I(0.4));
+@
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+\[ f(t) = \cos 2 \pi t + \frac{1}{2} \cos 4 \pi t \]
+
+<<power_spectrum_2, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE>>=
+
+plot(spectrum(f_seq));
+
+@
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+\[ f(t) = \cos 2 \pi t + \frac{1}{2} \cos 4 \pi t \]
+
+<<power_spectrum_3, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE>>=
+
+power <- (abs(fft(f_seq))^2)[1:251]
+
+qplot(seq_along(power) - 1, power, geom = 'line', size = I(0.1), xlab = expression(n), ylab = 'Power') + geom_point(size = 0.1);
+
+@
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+\begin{center}
+Does it work?
+\end{center}
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+Consider the square wave of period 1. Can define it as:
+
+\[ f(t) =
+\begin{cases}
++1, \; 0 \leq t < \frac{1}{2} \\
+-1, \; \frac{1}{2} \leq t < 1
+\end{cases}
+\]
+
+<<square_wave, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE, out.width='7cm', out.height='5cm'>>=
+
+t_seq <- seq(-5, 5, by = 0.001);
+f_seq <- sign(sin(2 * pi * t_seq));
+
+qplot(t_seq, f_seq, geom = 'line', size = I(0.1), xlab = expression(t), ylab = expression(f(t)))
+@
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+We can show that the Fourier series for this function is
+
+\[ \sum_{n \text{ odd}} \frac{2}{\pi in} \exp(2\pi int). \]
+
+This can be rewritten as
+
+\[ \frac{4}{\pi} \sum^N_{k=0} \frac{1}{2k+1} \sin 2\pi (2k+1) t. \]
+
+\end{frame}
+
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+<<square_wave_ft_1, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE>>=
+
+create_terms  <- function(t, k) (1 / (2 * k + 1)) * sin(2 * pi * (2 * k + 1) * t);
+
+create_series <- function(k) {
+  data_series <- function(t) {
+    data <- lapply(0:k, function(iterval) create_terms(t, iterval));
+
+    data_matrix <- do.call('rbind', data);
+
+    return(4 / pi * colSums(data_matrix))
+  }
+
+  return(data_series);
+}
+
+t_seq <- seq(-3, 3, by = 0.001);
+
+series_9  <- create_series(9) (t_seq);
+series_39 <- create_series(39)(t_seq);
+series_99 <- create_series(99)(t_seq);
+
+data_dt <- rbind(data.table(k = "09", t = t_seq, y = series_9)
+                ,data.table(k = "39", t = t_seq, y = series_39)
+                ,data.table(k = "99", t = t_seq, y = series_99));
+
+qplot(t, y, data = data_dt, geom = 'line', size = I(0.1), colour = k)
+@
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+<<square_wave_ft_2, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE>>=
+
+t_seq <- seq(-1, 1, by = 0.0001);
+
+series_9  <- create_series(9) (t_seq);
+series_99 <- create_series(99)(t_seq);
+
+qplot(t_seq, series_9, geom = 'line', size = I(0.1), xlab = expression(t), ylab = expression(f(t))) +
+    geom_line(aes(y = series_99), colour = 'blue', size = 0.1);
+
+@
+
+\end{frame}
+
+
+
+%%%
+%%%
+%%% Section: The Fourier Transform
+%%%
+%%%
+
+\section{The Fourier Transform}
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]{The Fourier Transform}
+
+Consider the rectangle function $\Pi(t)$:
+
+\[ \Pi(t) =
+\begin{cases}
+1, \; |t| < \frac{1}{2} \\
+0, \; |t| \geq \frac{1}{2} \\
+\end{cases}
+\]
+
+<<rect_func, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE, out.width='7cm', out.height='4cm'>>=
+
+t_seq <- seq(-3, 3, by = 0.001);
+f_seq <- ifelse(abs(t_seq) < 0.5, 1, 0);
+
+qplot(t_seq, f_seq, geom = 'line', size = I(0.1), xlab = expression(t), ylab = expression(Pi(t)))
+@
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}
+
+The $n$-th Fourier coefficient is given by
+
+\[ c_n = \frac{1}{T} \int^T_0 \exp(2\pi int/T) \, f(t) dt.   \]
+
+Some algebraic manipulation gives us
+
+\[ c_n = \frac{1}{\pi n} \sin \frac{\pi n}{T}. \]
+
+Scale up for behaviour as $T \to \infty$:
+
+\[ \text{Transform of } \Pi(t) = T \frac{1}{\pi n} \sin \frac{\pi n}{T} = \frac{\sin(\pi n / T)}{\pi n / T} \]
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}
+
+For $T$ large, can make $s = n / T$ closer together.
+
+\vspace{3mm}
+
+For $T \to \infty$, can have $s$ continuous and get the
+\emph{Fourier Transform} of $\Pi$
+
+\[ \hat{\Pi}(s) = \int^{\infty}_{-\infty} \exp(2\pi ist) \, \Pi(t) dt. \]
+
+Thus
+
+\[ \hat{\Pi}(s) = \frac{\sin \pi s}{\pi s} = \sinc s \]
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+<<sinc_func, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE>>=
+
+s_seq    <- seq(-10, 10, by = 0.001);
+sinc_seq <- sin(pi * s_seq) / (pi * s_seq);
+
+qplot(s_seq, sinc_seq, geom = 'line', size = I(0.1), xlab = expression(s), ylab = expression(sinc(s)))
+@
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}
+
+Define the \emph{Fourier Transform} of a function $f$, $\hat{f}$, to be
+
+\[ \hat{f}(s) = \int^{\infty}_{-\infty} \exp(-2 \pi ist) \, f(t) dt. \]
+
+Similarly, the \emph{inverse Fourier Tranform} or \emph{Fourier inversion}
+of $\hat{f}$ is
+
+\[ f(t) = \int^{\infty}_{-\infty} \exp(2 \pi ist) \, \hat{f}(s) ds. \]
+
+Way to move from time domain to frequency domain, with $t \in \mathbb{R}$
+and $s \in \mathbb{C}$
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}[fragile]
+
+Fourier transform of the `triangle' function, $\Lambda(t)$:
+
+\[ \Lambda(t) =
+\begin{cases}
+1 - |t|, \; |t| < 1 \\
+0, \; \text{otherwise}
+\end{cases}
+\]
+
+<<triangle_func, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE, out.width='7cm', out.height='4cm'>>=
+
+t_seq <- seq(-5, 5, by = 0.001);
+f_seq <- ifelse(abs(t_seq) < 1, 1 - abs(t_seq), 0);
+
+qplot(t_seq, f_seq, geom = 'line', size = I(0.1), xlab = expression(t), ylab = expression(Lambda(t)))
+@
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}
+
+The transform of $\Lambda(t)$ is closely related:
+
+\[ \mathcal{F}\Lambda(s) = \sinc^2 s \]
+
+This is due to convolution --- important, but not covered here.
+
+<<transform_triangle_func, echo=FALSE, cache=FALSE, results='show', warning=FALSE, message=FALSE, out.width='7cm', out.height='4cm'>>=
+
+s_seq     <- seq(-10, 10, by = 0.001);
+sinc2_seq <- (sin(pi * s_seq) / (pi * s_seq))^2;
+
+qplot(s_seq, sinc2_seq, geom = 'line', size = I(0.1), xlab = expression(s), ylab = expression(sinc^(2)*(s)))
+@
+
+\end{frame}
+
+
+
+%%%
+%%%
+%%% Section: Summary
+%%%
+%%%
+
+\section{Summary}
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}{Summary}
+
+\begin{itemize}
+  \item Fourier series is a good way to look at periodic functions
+  \item Fourier transforms moves signal from time (or spatial) domain back to frequency
+\end{itemize}
+
+
+\end{frame}
+
+
+%%%
+%%% New Frame
+%%%
+\begin{frame}{Links}
+
+\begin{center}
+Based entirely on Stanford course
+
+\vspace{3mm}
+EE261 - The Fourier Transform and Its Applications
+
+\vspace{3mm}
+Stanford Engineering Everywhere
+\footnotesize
+\url{https://see.stanford.edu/Course/EE261}
+\normalsize
+
+\vspace{3mm}
+YouTube Playlist
+\footnotesize
+\url{https://www.youtube.com/playlist?list=PLB24BC7956EE040CD}
+
+\end{center}
+
+
+\end{frame}
+
+
+\end{document}

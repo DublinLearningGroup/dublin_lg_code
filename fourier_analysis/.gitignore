@@ -1,0 +1,12 @@
+.Rhistory
+.RData
+
+*.pdf
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.tex
+*.toc
+*.vrb
