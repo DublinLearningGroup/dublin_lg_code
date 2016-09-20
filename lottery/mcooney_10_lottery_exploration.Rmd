@@ -25,7 +25,14 @@ Keywords:
 -->
 
 ```{r knit_opts, include = FALSE}
-knitr::opts_chunk$set(tidy = FALSE, cache = FALSE)
+rm(list = ls())
+
+knitr::opts_chunk$set(
+    tidy  = FALSE
+   ,cache = FALSE
+   ,fig.height =  8
+   ,fig.width  = 11
+   )
 
 library(data.table)
 library(dplyr)
@@ -34,27 +41,139 @@ library(ggplot2)
 
 library(readr)
 library(feather)
+library(readxl)
+
 
 options(width = 90)
+
+source("custom_functions.R")
 ```
 
 # Load Data
 
+This data has came in a number of different formats, so the first thing I have done is taken the individual
+
 ```{r load_data, echo=TRUE}
 data_files <- dir("data/data/", pattern = '\\.csv', full.names = TRUE)
 
-lottery_dt <- rbindlist(lapply(data_files, fread))
+lottery_dt <- rbindlist(lapply(data_files, fread, colClasses = c(COMPANY_NUMBER = 'character')))
 
-setnames(lottery_dt, tolower(names(lottery_dt)))
+setnames(lottery_dt, fix_column_names(names(lottery_dt)))
 
 lottery_dt[, announcement_date    := as.Date(announcement_date,    format = '%d/%m/%Y')]
 lottery_dt[, applicant_start_date := as.Date(applicant_start_date, format = '%d/%m/%Y')]
 lottery_dt[, decision_date        := as.Date(decision_date,        format = '%d/%m/%Y')]
 lottery_dt[, conv_current_award   := as.numeric(gsub("(\\d+) .*", "\\1", current_award))]
 
-str(lottery_dt)
-head(lottery_dt)
 glimpse(lottery_dt)
+
+
+### Read in the summary geospatial data from the XLSX file
+summgeo_dt <- read_excel("data/Big Lottery Dataset.xlsx"
+                        ,sheet = 'LSOA Shape file'
+                        ,col_types = c('text','text','text','text','text','text'
+                                      ,'text','numeric','numeric','numeric')
+                        )
+setDT(summgeo_dt)
+
+setnames(summgeo_dt, fix_column_names(names(summgeo_dt)))
+
+glimpse(summgeo_dt)
+```
+
+# Feature Creation
+
+We create a number of derived features from the data.
+
+```{r feature_creation, echo=TRUE}
+lottery_dt <- lottery_dt %>%
+    mutate(announcement_delay      = as.numeric(announcement_date - decision_date)
+          ,lifetime_at_award_days  = as.numeric(decision_date - applicant_start_date)
+          ,lifetime_at_award_years = round(as.numeric(decision_date - applicant_start_date) / 365.25, 0)
+          )
+```
+
+# Univariate Exploration
+
+We start with our standard approach of splitting the features into
+groups and then creating univariate plots of the data, the form of
+which depends on the variable type.
+
+```{r split_data_types, echo=TRUE}
+vars_num <- c("conv_current_award","announcement_delay","lifetime_at_award_days"
+             ,"lifetime_at_award_years")
+vars_cat <- c("applicant_name","charitable_status","organisation_type"
+             ,"programme_name","funder_name","la_area","region","constituency")
+vars_dte <- c("applicant_start_date","decision_date","announcement_date")
+```
+
+## Numerical Features
+
+First we look at the numerical features, doing a kernel density plot for each of the variables.
+
+```{r plot_numerical_features, echo=TRUE}
+for(plot_var in vars_num) {
+    cat(paste("Variable: ", plot_var, "\n"))
+
+    count_na     <- sum(is.na(lottery_dt[[plot_var]]))
+
+    var_plot <- ggplot() +
+        geom_histogram(aes(x = lottery_dt[[plot_var]]), bins = 50) +
+        scale_x_continuous(labels = scales::comma) +
+        scale_y_continuous(labels = scales::comma) +
+        xlab("Value") +
+        ylab("Count") +
+        ggtitle(paste0("Plot Variable: ", plot_var
+                      ," (", count_na, " NA vals)"
+                      )) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+    plot(var_plot)
+}
+```
+
+## Categorical Features
+
+For categorical variables we do bar plots for each of the levels of the variable
+
+```{r plot_categorical_features, echo=TRUE}
+for(plot_var in vars_cat) {
+    cat(paste("Variable: ", plot_var, "\n"))
+
+    count_unique <- length(unique(lottery_dt[[plot_var]]))
+    count_na     <- sum(is.na(lottery_dt[[plot_var]]))
+
+    var_plot <- ggplot() +
+        geom_bar(aes(x = lottery_dt[[plot_var]])) +
+        scale_y_continuous(labels = scales::comma) +
+        xlab("Value") +
+        ylab("Count") +
+        ggtitle(paste0("Plot Variable: ", plot_var
+                      ," (", count_unique, " unique vals - "
+                      ,count_na, " NA vals)"
+                      )) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+    plot(var_plot)
+}
+```
+
+## Date Variables
+
+For date variables we do bar plots for the years in the dates
+
+```{r plot_date_features, echo=TRUE}
+for(plot_var in vars_dte) {
+    cat(paste("Variable: ", plot_var, "\n"))
+
+    var_plot <- ggplot() +
+        geom_bar(aes(x = year(lottery_dt[[plot_var]]))) +
+        scale_y_continuous(labels = scales::comma) +
+        xlab(paste0("Plot Variable: ", plot_var)) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+    plot(var_plot)
+}
 ```
 
 

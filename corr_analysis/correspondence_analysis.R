@@ -3,27 +3,27 @@
 ##CA is used to graphically visualize row points and column points in a low dimensional space.
 ##How?
 
-##Correspondence analysis is a descriptive/exploratory technique designed 
-##to analyze simple two-way and multi-way tables containing 
+##Correspondence analysis is a descriptive/exploratory technique designed
+##to analyze simple two-way and multi-way tables containing
 #some measure of correspondence between the rows and columns.
-##chisq test statistic is used to test the significance 
-##of the overall deviation of the actual sample from the 
+##chisq test statistic is used to test the significance
+##of the overall deviation of the actual sample from the
 ##independence model it can be written as
 
-##chisq stat used to test the significance of the overall 
+##chisq stat used to test the significance of the overall
 ##deviaiton of the actual sample from the independence model.
 ##it can be expressed as possible
 ##chisq =sum of (Actual sample size- Theoretical size)2/Theoretical sample size.
 
-##CA decomposes the chi-square statistic associated with the 
-##two-way table into orthogonal factors 
-##that maximize the separation between row and column scores 
-##(i.e. the frequencies computed from the table of profiles). 
-##Here, you see that there is some connection with PCA but the 
-##measure of variance (or the metric) retained in CA is the chiSQuared, 
-##which only depends on column profiles 
-##(As it tends to give more importance to modalities 
-##that have large marginal values, we can also re-weight the initial data, 
+##CA decomposes the chi-square statistic associated with the
+##two-way table into orthogonal factors
+##that maximize the separation between row and column scores
+##(i.e. the frequencies computed from the table of profiles).
+##Here, you see that there is some connection with PCA but the
+##measure of variance (or the metric) retained in CA is the chiSQuared,
+##which only depends on column profiles
+##(As it tends to give more importance to modalities
+##that have large marginal values, we can also re-weight the initial data,
 ##but this is another story).
 
 
@@ -34,8 +34,8 @@
 
 
 
-install.packages("FactoMineR")
-install.packages("factoextra")
+#install.packages("FactoMineR")
+#install.packages("factoextra")
 # install.packages("devtools")
 
 
@@ -49,7 +49,7 @@ data(housetasks)
 head(housetasks,10)
 ##its a contingency table
 
-install.packages("gplots")
+#install.packages("gplots")
 
 # install.packages("magrittr")
 library("gplots")
@@ -64,11 +64,11 @@ balloonplot(t(dt), main ="housetasks", xlab ="", ylab="",
 
 # install.packages("graphics")
 library("graphics")
-## pass it a 
+## pass it a
 mosaicplot(dt, shade = TRUE, las=2,
            main = "housetasks")
 
-##From this mosaic plot, it can be seen that the housetasks Laundry, 
+##From this mosaic plot, it can be seen that the housetasks Laundry,
 ##Main_meal, Dinner and breakfeast (blue color) are mainly done by the wife in our example.
 
 # install.packages("vcd")
@@ -85,7 +85,7 @@ library(fifer)
 chisqtest.housetasks <- chisq.test(housetasks)
 print(chisqtest.housetasks)
 ## definitely a dependency
-##run a post-hoctest 
+##run a post-hoctest
 chisq.post.hoc(dt, test = c("fisher.test"),
                popsInRows = TRUE,
                control = c( "bonferroni"),
@@ -121,7 +121,7 @@ summary(res.ca, nb.dec = 2, ncp = 2)
 ## The correlation coefficient is calculated as follow
 
 eig <- get_eigenvalue(res.ca)
-trace <- sum(eig$eigenvalue) 
+trace <- sum(eig$eigenvalue)
 cor.coef <- sqrt(trace)
 cor.coef ## very strong correlation between rows and columns
 

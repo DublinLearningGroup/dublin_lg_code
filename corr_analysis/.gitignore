@@ -1,0 +1,9 @@
+.Rhistory
+.RData
+
+data/*.zip
+data/*.txt
+data/*.json
+data/*.html
+data/data/*
+data/*.xlsx
