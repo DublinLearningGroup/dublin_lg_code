@@ -1,0 +1,155 @@
+---
+title: "Introduction to Time Series"
+author: "Mick Cooney"
+date: "2 November 2016"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    fig_caption: yes
+    theme: cerulean
+  pdf_document: default
+---
+
+<!--
+(Title:) Introduction to Time Series
+
+Author: Mick Cooney
+
+Date: 2 November 2016
+
+Abstract: This is a quick introduction to time series, based largely
+on a previous time series workshop I created.
+
+Keywords:
+
+-->
+
+```{r knit_opts, include=TRUE}
+knitr::opts_chunk$set(tidy = FALSE, cache = FALSE)
+
+library(tidyverse)
+library(data.table)
+library(dtplyr)
+
+library(ggfortify)
+
+options(width = 80L)
+
+set.seed(42)
+```
+
+
+
+---
+
+# Introduction to Time Series
+
+Time series occur in almost any field of study that produces
+quantitative data. Whenever quantities are measured over time, those
+measurements form a time-series, or more formally, a _discrete-time
+stochastic_.
+
+
+One reasonably famous example of a time-series is count of airline
+passengers in the US, as seen below. This is a fairly
+simple time-series, with measurements taken on a monthly basis over a
+number of years, with each datum consisting of a single number,
+i.e. this time-series is _univariate_.
+
+```{r load_air_passengers, echo=TRUE}
+data(AirPassengers)
+
+str(AirPassengers)
+```
+
+Having quickly looked at the data, we now plot it.
+
+```{r plot_air_passengers, echo=TRUE}
+plot(AirPassengers)
+```
+
+The above plot uses base R packages - which is limited, so we will
+look to run a similar plot but using tools built in ggplot2.
+
+We could build this from scratch, but the package `ggfortify` will
+help.
+
+
+```{r ggfortify_air_passengers, echo=TRUE}
+autoplot(AirPassengers) +
+    expand_limits(y = 0) +
+    xlab("Year") +
+    ylab("Count of Passengers ('000s)")
+
+```
+
+## Overview
+
+
+```{r decompose_timeseries, echo=TRUE}
+ap_decompose <- decompose(AirPassengers)
+
+plot(ap_decompose)
+
+autoplot(ap_decompose)
+```
+
+Let's try a multiplicative model.
+
+```{r decompose_timeseries_mult, echo=TRUE}
+ap_decompose_mult <- decompose(AirPassengers, type = 'multiplicative')
+
+plot(ap_decompose_mult)
+
+autoplot(ap_decompose_mult)
+```
+
+```{r decompose_timeseries_stl, echo=TRUE}
+ap_decompose_stl <- stl(AirPassengers, s.window = 'periodic')
+
+plot(ap_decompose_stl)
+
+autoplot(ap_decompose_stl)
+```
+
+
+# Autocorrelation (Serial Correlation)
+
+```{r autocorrelation, echo=TRUE}
+ap_acf <- acf(AirPassengers, plot = FALSE)
+
+plot(ap_acf)
+
+autoplot(ap_acf)
+```
+
+
+```{r partial_autocorrelation, echo=TRUE}
+ap_pacf <- pacf(AirPassengers, plot = FALSE)
+
+plot(ap_pacf)
+
+autoplot(ap_pacf)
+```
+
+
+# ARMA and ARIMA Models
+
+```{r generate_innovations, echo=TRUE}
+innovations <- rnorm(1000, 0, 1)
+
+ma_1 <- arima.sim(list(ma = 0.8), innov = innovations, n = 100)
+
+ggplot() +
+    geom_line(aes(x = seq_along(ma_1), y = ma_1)) +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), colour = 'red')
+
+ma_2 <- arima.sim(list(ma = c(0.4, 0.4)), innov = innovations, n = 100)
+
+ggplot() +
+    geom_line(aes(x = seq_along(ma_2), y = ma_2)) +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), colour = 'red')
+
+
+```
