@@ -1,0 +1,285 @@
+---
+title: "Introduction to Time Series"
+author: "Mick Cooney"
+date: "`r Sys.Date()`"
+output:
+  revealjs::revealjs_presentation:
+    theme: night
+    highlight: pygments
+    center: true
+---
+
+<!--
+(Title:) Introduction to Time Series
+
+Author: Mick Cooney
+
+Date: 2 November 2016
+
+Abstract: This is a quick introduction to time series, based largely
+on a previous time series workshop I created.
+
+Keywords:
+
+-->
+
+```{r knit_opts, include=FALSE}
+knitr::opts_chunk$set(tidy = FALSE
+                     ,cache = FALSE
+                     ,fig.height =  6
+                     ,fig.width  = 11)
+
+library(tidyverse)
+library(data.table)
+library(dtplyr)
+
+library(ggfortify)
+library(plotly)
+
+
+options(width = 80L)
+
+set.seed(42)
+```
+
+## Air Passengers
+
+
+```{r ggfortify_air_passengers, echo=FALSE}
+autoplot(AirPassengers) +
+    expand_limits(y = 0) +
+    xlab("Year") +
+    ylab("Count of Passengers ('000s)")
+
+```
+
+## Time Series Decomposition
+
+
+```{r decompose_timeseries, echo=FALSE, warning=FALSE}
+ap_decompose <- decompose(AirPassengers)
+
+autoplot(ap_decompose)
+```
+
+---
+
+Multiplicative Decomposition
+
+```{r decompose_timeseries_mult, echo=FALSE, warning=FALSE}
+ap_decompose_mult <- decompose(AirPassengers, type = 'multiplicative')
+
+autoplot(ap_decompose_mult)
+```
+
+---
+
+STL Decomposition
+
+```{r decompose_timeseries_stl, echo=FALSE, warning=FALSE}
+ap_decompose_stl <- stl(AirPassengers, s.window = 'periodic')
+
+autoplot(ap_decompose_stl)
+```
+
+
+## Serial Correlation
+
+```{r first_differences, echo=FALSE}
+autoplot(diff(AirPassengers)) +
+    ggtitle("Plot of the Diffs of the Air Passengers")
+```
+
+---
+
+Air Passenger Correlogram
+
+```{r autocorrelation, echo=FALSE}
+ap_decomp_resid <- ap_decompose$random[!is.na(ap_decompose$random)]
+
+ap_acf <- acf(ap_decomp_resid, plot = FALSE)
+
+autoplot(ap_acf) +
+    ggtitle("Correlogram of the Air Passenger Residuals")
+```
+
+---
+
+Partial Correlogram
+
+```{r partial_autocorrelation, echo=FALSE}
+ap_pacf <- pacf(ap_decomp_resid, plot = FALSE)
+
+autoplot(ap_pacf) +
+    ggtitle("Partial Correlogram of the Air Passenger Residuals")
+```
+
+---
+
+Correlogram of First Differences
+
+```{r partial_correlogram, echo=FALSE}
+autoplot(pacf(diff(AirPassengers), plot = FALSE)) +
+    ggtitle("Partial Correlogram of the Differenced Air Passenger Data")
+```
+
+## Modelling Time Series
+
+Time series values as $x_t$.
+
+*Innovations* as $w_t$
+
+$$
+\text{Noise} \rightarrow \text{MODEL} \rightarrow \text{signal}
+$$
+
+
+## EWMA Models
+
+Exponentially Weighted Moving Average
+
+$$
+x_{t+1} = \lambda w_t + (1 - \lambda) x_{t}
+$$
+
+Apply recursively:
+
+$$
+x_{t+1} = \lambda w_t + \lambda(1 - \lambda) w_{t-1} + (1 - \lambda)^2  x_{t-2}
+$$
+
+
+
+## ARMA and ARIMA Models
+
+```{r generate_innovations, echo=TRUE}
+innovations <- rnorm(1000, 0, 1)
+```
+
+## MA Models
+
+$$
+\text{MA(p):} x_t = w_t + \sum^{p}_{i=1} \alpha_i w_{t-i}
+$$
+
+---
+
+MA(1) Model
+
+```{r create_ma1_timeseries, echo=FALSE}
+ma_1 <- arima.sim(list(ma = 0.8), innov = innovations, n = 100)
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ma_1), y = as.numeric(ma_1)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```
+
+---
+
+MA(2) Model
+
+```{r create_ma2_timeseries, echo=FALSE}
+ma_2 <- arima.sim(list(ma = c(0.4, 0.4)), innov = innovations, n = 100)
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ma_2), y = as.numeric(ma_2)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```
+
+---
+
+Look at models against innovations
+
+```{r ma_plots, echo=FALSE}
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ma_1), y = as.numeric(ma_1)), colour = 'red') +
+    geom_line(aes(x = seq_along(ma_2), y = as.numeric(ma_2)), colour = 'blue') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```
+
+## AR Models
+
+$$
+\text{AR(q):} x_t = w_t + \sum^{q}_{i=1} \beta_i x_{t-i}
+$$
+
+
+---
+
+AR(1) Model
+
+```{r create_ar1_timeseries, echo=TRUE}
+ar_1 <- arima.sim(list(ar = 0.8), innov = innovations, n = 100)
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ar_1), y = as.numeric(ar_1)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```
+
+---
+
+AR(2) Model
+
+```{r create_ar2_timeseries, echo=TRUE}
+ar_2 <- arima.sim(list(ar = c(0.4, 0.4)), innov = innovations, n = 100)
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ar_2), y = as.numeric(ar_2)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```
+
+
+```{r plot_ar_series, echo=FALSE}
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ar_1), y = as.numeric(ar_1)), colour = 'red') +
+    geom_line(aes(x = seq_along(ar_2), y = as.numeric(ar_2)), colour = 'blue') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```
+
+## ARMA Models
+
+Combine both
+
+$$
+\text{ARMA(p,q):} x_{t} = w_t + \sum^{p}_{i=1} \alpha_i w_{t-i} + \sum^{q}_{j=1} \beta_j x_{t-j}
+
+
+```{r create_arma_series, echo=TRUE}
+arma_1_1 <- arima.sim(list(ar = 0.4, ma = 0.4), innov = innovations, n = 100)
+```
+
+```{r plot_arma_series, echo=FALSE}
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100])) +
+    geom_line(aes(x = seq_along(ar_1), y = as.numeric(ar_1)), colour = 'red') +
+    geom_line(aes(x = seq_along(ma_1), y = as.numeric(ma_1)), colour = 'blue') +
+    geom_line(aes(x = seq_along(arma_1_1), y = as.numeric(arma_1_1)), colour = 'green') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```

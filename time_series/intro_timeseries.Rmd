@@ -1,8 +1,12 @@
 ---
 title: "Introduction to Time Series"
 author: "Mick Cooney"
-date: "2 November 2016"
+date: "`r Sys.Date()`"
 output:
+  revealjs::revealjs_presentation:
+    theme: night
+    highlight: pygments
+    center: true
   html_document:
     toc: true
     number_sections: true
@@ -25,7 +29,7 @@ Keywords:
 
 -->
 
-```{r knit_opts, include=TRUE}
+```{r knit_opts, include=FALSE}
 knitr::opts_chunk$set(tidy = FALSE
                      ,cache = FALSE
                      ,fig.height =  8
@@ -62,6 +66,7 @@ simple time-series, with measurements taken on a monthly basis over a
 number of years, with each datum consisting of a single number,
 i.e. this time-series is _univariate_.
 
+
 ```{r load_air_passengers, echo=TRUE}
 data(AirPassengers)
 
@@ -79,6 +84,7 @@ look to run a similar plot but using tools built in ggplot2.
 
 We could build this from scratch, but the package `ggfortify` will
 help.
+
 
 
 ```{r ggfortify_air_passengers, echo=TRUE}
