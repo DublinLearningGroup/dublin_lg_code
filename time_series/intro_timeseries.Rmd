@@ -26,13 +26,18 @@ Keywords:
 -->
 
 ```{r knit_opts, include=TRUE}
-knitr::opts_chunk$set(tidy = FALSE, cache = FALSE)
+knitr::opts_chunk$set(tidy = FALSE
+                     ,cache = FALSE
+                     ,fig.height =  8
+                     ,fig.width  = 11)
 
 library(tidyverse)
 library(data.table)
 library(dtplyr)
 
 library(ggfortify)
+library(plotly)
+
 
 options(width = 80L)
 
@@ -90,8 +95,6 @@ autoplot(AirPassengers) +
 ```{r decompose_timeseries, echo=TRUE}
 ap_decompose <- decompose(AirPassengers)
 
-plot(ap_decompose)
-
 autoplot(ap_decompose)
 ```
 
@@ -100,15 +103,11 @@ Let's try a multiplicative model.
 ```{r decompose_timeseries_mult, echo=TRUE}
 ap_decompose_mult <- decompose(AirPassengers, type = 'multiplicative')
 
-plot(ap_decompose_mult)
-
 autoplot(ap_decompose_mult)
 ```
 
 ```{r decompose_timeseries_stl, echo=TRUE}
 ap_decompose_stl <- stl(AirPassengers, s.window = 'periodic')
-
-plot(ap_decompose_stl)
 
 autoplot(ap_decompose_stl)
 ```
@@ -116,21 +115,34 @@ autoplot(ap_decompose_stl)
 
 # Autocorrelation (Serial Correlation)
 
-```{r autocorrelation, echo=TRUE}
-ap_acf <- acf(AirPassengers, plot = FALSE)
+## Air Passengers
 
-plot(ap_acf)
+```{r first_differences, echo=TRUE}
+autoplot(AirPassengers) +
+    ggtitle("Plot of the Air Passengers")
 
-autoplot(ap_acf)
+autoplot(diff(AirPassengers)) +
+    ggtitle("Plot of the Diffs of the Air Passengers")
 ```
 
+## Air Passenger Correlogram
 
-```{r partial_autocorrelation, echo=TRUE}
-ap_pacf <- pacf(AirPassengers, plot = FALSE)
+```{r autocorrelation, echo=TRUE}
+ap_decomp_resid <- ap_decompose$random[!is.na(ap_decompose$random)]
 
-plot(ap_pacf)
+ap_acf <- acf(ap_decomp_resid, plot = FALSE)
 
-autoplot(ap_pacf)
+autoplot(ap_acf) +
+    ggtitle("Correlogram of the Air Passenger Residuals")
+
+
+ap_pacf <- pacf(ap_decomp_resid, plot = FALSE)
+
+autoplot(ap_pacf) +
+    ggtitle("Partial Correlogram of the Air Passenger Residuals")
+
+autoplot(pacf(diff(AirPassengers), plot = FALSE)) +
+    ggtitle("Partial Correlogram of the Differenced Air Passenger Data")
 ```
 
 
@@ -138,18 +150,93 @@ autoplot(ap_pacf)
 
 ```{r generate_innovations, echo=TRUE}
 innovations <- rnorm(1000, 0, 1)
+```
 
+
+## MA Models
+
+```{r create_ma_timeseries, echo=TRUE}
 ma_1 <- arima.sim(list(ma = 0.8), innov = innovations, n = 100)
 
-ggplot() +
-    geom_line(aes(x = seq_along(ma_1), y = ma_1)) +
-    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), colour = 'red')
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ma_1), y = as.numeric(ma_1)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
 
 ma_2 <- arima.sim(list(ma = c(0.4, 0.4)), innov = innovations, n = 100)
 
-ggplot() +
-    geom_line(aes(x = seq_along(ma_2), y = ma_2)) +
-    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), colour = 'red')
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ma_2), y = as.numeric(ma_2)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
 
 
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ma_1), y = as.numeric(ma_1)), colour = 'red') +
+    geom_line(aes(x = seq_along(ma_2), y = as.numeric(ma_2)), colour = 'blue') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+
+```
+
+## AR Series
+
+Now that we  have created MA series, we look at what the AR series look like.
+
+```{r create_ar_timeseries, echo=TRUE}
+ar_1 <- arima.sim(list(ar = 0.8), innov = innovations, n = 100)
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ar_1), y = as.numeric(ar_1)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+
+
+ar_2 <- arima.sim(list(ar = c(0.4, 0.4)), innov = innovations, n = 100)
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ar_2), y = as.numeric(ar_2)), colour = 'red') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100]), size = 0.5) +
+    geom_line(aes(x = seq_along(ar_1), y = as.numeric(ar_1)), colour = 'red') +
+    geom_line(aes(x = seq_along(ar_2), y = as.numeric(ar_2)), colour = 'blue') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
+```
+
+## ARMA Models
+
+```{r create_arma_series, echo=TRUE}
+arma_1_1 <- arima.sim(list(ar = 0.4, ma = 0.4), innov = innovations, n = 100)
+
+output_plot <- ggplot() +
+    geom_line(aes(x = seq_along(innovations[1:100]), y = innovations[1:100])) +
+    geom_line(aes(x = seq_along(ar_1), y = as.numeric(ar_1)), colour = 'red') +
+    geom_line(aes(x = seq_along(ma_1), y = as.numeric(ma_1)), colour = 'blue') +
+    geom_line(aes(x = seq_along(arma_1_1), y = as.numeric(arma_1_1)), colour = 'green') +
+    xlab("Time Step") +
+    ylab("Value")
+
+ggplotly(output_plot)
 ```
