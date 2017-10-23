@@ -1,0 +1,300 @@
+---
+title: "FFT LG"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(lubridate)
+library(plotly)
+library(ggplot2)
+library(tidyverse)
+library(mice)
+library(tidyr)
+library(reshape2)
+library(cowplot)
+
+
+wave_gen=function(amp=1,f=1,t=seq(0,10,length.out = 100),noise_amp=0){
+  noise=noise_amp*runif(n=length(t),min=-1,max=1)
+  y=(amp*sin(t*2*pi*f))+noise
+  return(y)
+}
+FFT_test=function(amps,fqs,t_vec,noise_amp=0,plot_out=F){
+  library(ggplot2)
+  waves=matrix(ncol = length(amps),nrow  = length(t_vec))
+  sampling=diff(t_vec)[1]
+  
+  for(n in seq(length(amps))){
+    waves[,n]=wave_gen(amp=amps[n],f = fqs[n],t=t_vec,noise_amp)
+  }
+  
+  waves=as.data.frame(waves)
+  w_names=""
+  
+  for(n in seq(length(fqs))){
+    w_names[n]=paste0("wave_",n)
+  }
+  names(waves)=w_names
+  
+  ggwaves=cbind(waves,t_vec)
+  ggwaves$wave_all=rowSums(waves)
+  
+  p1=ggplot(data=ggwaves,aes(x=t_vec,y=wave_all)) + geom_line()  + ggtitle ("full sample for FFT")
+  
+  melt_waves = melt(ggwaves, id = "t_vec")
+  p2=ggplot(melt_waves %>% filter(variable!="wave_all") , aes(x = t_vec, y = value, group = variable, colour = variable)) +  
+    geom_line(size=2) + xlim(0,.1) + ggtitle ("each individual wave")
+  
+  
+  
+  N=length(ggwaves$wave_all)
+  fft_y=fft(ggwaves$wave_all)
+  fft_y=abs(fft_y[1:floor(N/2)])
+  fft_y=fft_y/length(t_vec)*2 #amplitude correction
+  
+  
+  nyquist=0.5
+  freq=1/sampling*(1:(N/2))/(N/2)*nyquist #sampling adjustment applied
+  
+  FFT_DF=data.frame(freq,fft_y)
+  
+  f1=ggplot(FFT_DF,aes(freq,fft_y))+geom_line()  + ggtitle ("Spectrogram")
+  f2=ggplot(FFT_DF,aes((1/freq),fft_y))+geom_line()+scale_x_log10()  + ggtitle ("Periodgram")
+  
+  if(plot_out==T){
+      #print(plot_grid(p2,p1,f1,f2,nrow = 2))
+    print(p2)
+    print(p1)
+    print(f1)
+    print(f2)
+  }
+  
+  
+  return(FFT_DF)
+}
+FFT_filter=function(wave_in,t_vec,thresh=1){
+  sampling=diff(t_vec)[1]
+  ggwaves=data.frame(wave_all=wave_in,t_vec=t_vec)
+  N=length(ggwaves$wave_all)
+  fft_o=fft(ggwaves$wave_all)
+  
+  #simple peak detection
+  peaks_max=max(abs(fft_o))
+  peak_locs=which(abs(fft_o)>peaks_max*thresh)
+  #peak_locs=c(peak_locs,peak_locs+1,peak_locs-1)
+  
+  
+  ff_filt=rep(0,N)
+  ff_filt[peak_locs]=1
+  a_filt=fft_o*ff_filt
+  a_inv=fft(a_filt,inverse = TRUE)/N
+  result=Re(a_inv)
+  
+  #par(mfrow=c(4,1))
+  plot(ggwaves$wave_all,type = "l",main = "Input")
+  plot(abs(fft_o),type = "l",main = "FFT")
+  plot(abs(a_filt),type = "l",main = "Filtered FFT")
+  plot(Re(a_inv),type = "l",main = "Reconstructed")
+  #par(mfrow=c(1,1))
+  
+  
+  
+  #print(plot_grid(p2,p1,f1,f2,nrow = 2))
+  
+  
+  return(result)
+}
+
+FFT_auto=function(Data_in,t_vec_in,amps,fqs,t_vec,noise_amp=0){
+  library(ggplot2)
+  # waves=matrix(ncol = length(amps),nrow  = length(t_vec))
+  # 
+  # for(n in seq(length(amps))){
+  #   waves[,n]=wave_gen(amp=amps[n],f = fqs[n],t=t_vec,noise_amp)
+  # }
+  # 
+  # waves=as.data.frame(waves)
+  # w_names=""
+  # 
+  # for(n in seq(length(fqs))){
+  #   w_names[n]=paste0("wave_",n)
+  # }
+  # names(waves)=w_names
+  # 
+  # ggwaves=cbind(waves,t_vec)
+  # ggwaves$wave_all=rowSums(waves)
+  # 
+  # p1=ggplot(data=ggwaves,aes(x=t_vec,y=wave_all)) + geom_line()
+  # 
+  # melt_waves = melt(ggwaves, id = "t_vec")
+  # p2=ggplot(melt_waves %>% filter(variable!="wave_all") , aes(x = t_vec, y = value, group = variable, colour = variable)) +
+  #   geom_line()
+  # 
+  # ggwaves$wave_all=Data_in
+  
+  sampling=as.numeric(mean(diff(t_vec_in),na.rm = T))
+  N=length(Data_in)
+  
+  fft_y=fft(Data_in)
+  fft_y=abs(fft_y[1:floor(N/2)])
+  fft_y=fft_y/length(t_vec_in)*2 #amplitude correction
+  
+  
+  nyquist=0.5
+  freq=1/sampling*(1:(N/2))/(N/2)*nyquist #sampling adjustment applied
+  
+  FFT_DF=data.frame(freq,fft_y)
+  
+  f1=ggplot(FFT_DF,aes(freq,fft_y))+geom_line()
+  f2=ggplot(FFT_DF,aes((1/freq),fft_y))+geom_line()+scale_x_log10()
+  
+  print(plot_grid(f1,f2,nrow = 2))
+  
+  
+  return(FFT_DF)
+}
+
+
+
+```
+
+
+###Before processing the data 
+The data vector should be peroidic with a known sampling period. Any gaps in the data or jumps in the time series should be addressed with inerpolation or setting the data to 0.
+For the Eirgrid data the sampling period is 15 with some missing data set to 0.
+
+##FFT process
+* Compute the FFT [fft(df$data)]
+
+* process the FFT with abs(fft[1:floor(N/2)])
+    + where N is the length input vector
+
+* construct the frequency vector with (1:(N/2))/(N/2)*nyquist) 
+    + where nyquist is the sampling limit and set to 0.5
+    
+* adjust for the amplitude
+    + fft/N*2 #amplitude correction
+
+
+
+```{r starting example, echo=F}
+t_vec=seq(0,2, by =  .001)
+
+
+noise=0
+amps=c(10,5,3,20,7,15)
+fqs=c(20,10,30,40,50,90)
+
+waves1=matrix(ncol = length(amps),nrow  = length(t_vec))
+
+for(n in seq(length(amps))){
+  waves1[,n]=wave_gen(amp=amps[n],f = fqs[n],t=t_vec,noise)
+}
+
+plot(t_vec,rowSums(waves1),type = "l",xlim = c(0,.2))
+
+fftdf=FFT_test(amps,fqs,t_vec,noise,T)
+ggplotly(ggplot(fftdf,aes(freq,fft_y))+geom_line() + ggtitle ("Plotly Spectrogram"))
+```
+original frequencies were
+
+amps=c(5,10,3,20,7,15)
+
+fqs=c(10,20,30,40,50,90)
+
+
+
+##FFT filtering
+
+
+Can you see the pattern? 
+
+can you see the signal?
+
+
+```{r filtering  example, echo=FALSE}
+
+t_vec=seq(0,2, by =  .001)
+
+
+noise=40
+amps=c(10,5,3,20,7,15)
+fqs=c(20,10,30,40,50,90)
+
+waves=matrix(ncol = length(amps),nrow  = length(t_vec))
+
+for(n in seq(length(amps))){
+  waves[,n]=wave_gen(amp=amps[n],f = fqs[n],t=t_vec,noise)
+}
+
+wave_in=rowSums(waves)
+plot(t_vec,wave_in,type = "l",xlim = c(0,.2),main="Signal with noise added")
+
+fftdf=FFT_test(amps,fqs,t_vec,noise,plot_out = F)
+ggplotly(ggplot(fftdf,aes(freq,fft_y))+geom_line()+ ggtitle ("Plotly Spectrogram"))
+
+thresh=(5*sd(fftdf$fft_y))/max(fftdf$fft_y)
+#thresh=.9
+
+filt=FFT_filter(wave_in = wave_in,t_vec,thresh)
+
+plot(t_vec,wave_in,type = "l",xlim = c(0,.2),main = "Before Filtering")
+plot(t_vec,filt,type="l",xlim = c(0,0.2),main = "After Filtering")
+
+plot(t_vec,filt,type="l",xlim = c(0,0.2),main = "comparison (red is original)")
+par(new=T)
+lines(t_vec,rowSums(waves1),col="red")
+
+```
+
+#Eirgrid Data
+
+```{r Eirgrid Data}
+
+elec=read.csv("c:/Patrick/DataScience/TimeSeries/system_combined.csv")
+elec$Time=as.POSIXct(strptime(elec$Time, "%Y-%m-%d %H:%M:%S"))
+
+summary(elec)
+dim(elec)[1]
+
+
+
+
+
+plot(elec$Time[1:200000],(elec$System.Demand.MW[1:200000]),type = "l")
+
+elec_2014_jan = elec %>% filter(Time >= as.Date("2014-01-01") & Time <= as.Date("2014-02-28") )
+p = ggplot(elec_2014_jan, aes(x = Time, y=System.Demand.MW))+  geom_line()
+ggplotly(p)
+
+elec_2014 = elec %>% filter(Time >= as.Date("2014-02-21") & Time <= as.Date("2014-03-03") )
+p = ggplot(elec_2014, aes(x = Time, y=System.Demand.MW))+ geom_line()
+ggplotly(p)
+
+
+
+elec$System.Demand.MW=elec$System.Demand.MW-mean(elec$System.Demand.MW)
+fft_EirGrid=FFT_auto(Data_in = elec$System.Demand.MW[1:200000], t_vec_in = elec$Time[1:200000])
+ggplotly(ggplot(fft_EirGrid,aes(freq,fft_y))+geom_line()+labs(x="cycles per min",y="power/MW") + ggtitle("spectrogram (units unadjusted)"))
+ggplotly(ggplot(fft_EirGrid,aes(1/freq,fft_y))+geom_line()+labs(x="min per cycle",y="power/MW") + ggtitle("periodogram (units unadjusted)"))
+###########
+fft_EirGrid_peri=fft_EirGrid
+fft_EirGrid_peri$freq=1/fft_EirGrid_peri$freq/60
+
+
+p <- plot_ly(fft_EirGrid_peri, x = ~freq, y = ~fft_y,type = "scatter", mode="lines") %>%
+  layout(title= "periodogram",xaxis = list(title = "Hours per cycle",type="log"))
+p
+
+########
+fft_EirGrid_peri=fft_EirGrid
+fft_EirGrid_peri$freq=1/fft_EirGrid_peri$freq/(60*24*7)
+
+
+p <- plot_ly(fft_EirGrid_peri, x = ~freq, y = ~fft_y,type = "scatter", mode="lines") %>%
+  layout(title= "periodogram",xaxis = list(title = "weeks per cycle",type="log"))
+p
+
+```
+
