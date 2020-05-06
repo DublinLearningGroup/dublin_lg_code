@@ -1,0 +1,152 @@
+---
+title: "Illustrating purrr"
+author: "Mick Cooney <mickcooney@gmail.com>"
+date: "13 July 2016"
+output:
+  html_document:
+    fig_caption: yes
+    theme: spacelab #sandstone #spacelab #flatly
+    highlight: pygments
+    number_sections: TRUE
+    toc: TRUE
+    toc_depth: 2
+    toc_float:
+      smooth_scroll: FALSE
+  pdf_document: default
+---
+
+
+```{r knit_opts, include = FALSE}
+rm(list = ls())
+
+knitr::opts_chunk$set(tidy       = FALSE,
+                      cache      = FALSE,
+                      fig.height =  8,
+                      fig.width  = 11
+                     )
+
+library(tidyverse)
+library(furrr)
+library(broom)
+
+plan(multisession)
+
+set.seed(42)
+```
+
+
+```{r load_data, echo=TRUE}
+policyclaim_tbl <- read_rds("data/policyclaim_tbl.rds")
+
+claimdata_tbl <- policyclaim_tbl %>%
+  unnest(claim_data) %>%
+  sample_n(500)
+
+
+training_tbl <- policyclaim_tbl %>% sample_n(1000)
+
+pricing_policies_tbl <- policyclaim_tbl %>% sample_n(300)
+```
+
+
+```{r fit_freq_sev_models, echo=TRUE}
+freq_model_01 <- glm(claim_count ~ cat_driver_age + region + fuel,
+                     offset = log(exposure),
+                     family = poisson,
+                     data   = training_tbl)
+
+
+freq_model_02 <- glm(claim_count ~ cat_driver_age + region + fuel + cat_car_age,
+                     offset = log(exposure),
+                     family = poisson,
+                     data   = training_tbl)
+
+sev_model_01 <- glm(claim_amount ~ 1,
+                    family = Gamma(link = 'log'),
+                    data   = claimdata_tbl)
+
+sev_model_02 <- glm(claim_amount ~ region,
+                    family = Gamma(link = 'log'),
+                    data   = claimdata_tbl)
+
+
+
+create_pricing_function <- function(freq_model, sev_model) {
+  price_func <- function(policydata_tbl) {
+    freqrate_tbl <- freq_model %>%
+      augment(newdata = policydata_tbl, type.predict = "response") %>%
+      select(policy_id, freq_rate = .fitted)
+        
+    sevamt_tbl <- sev_model %>%
+      augment(newdata = policydata_tbl, type.predict = "response") %>%
+      select(policy_id, sev_amt = .fitted)
+    
+    pricing_tbl <- freqrate_tbl %>%
+      inner_join(sevamt_tbl, by = "policy_id") %>%
+      mutate(price = freq_rate * sev_amt)
+    
+    return(pricing_tbl)
+  }
+  
+  return(price_func)
+}
+
+
+one_pricer <- create_pricing_function(freq_model_01, sev_model_01)
+two_pricer <- create_pricing_function(freq_model_01, sev_model_02)
+
+
+create_freq_fitter <- function(freq_formula, training_tbl) {
+  freq_model <- glm(freq_formula,
+                    offset = log(exposure),
+                    family = poisson,
+                    data   = training_tbl)
+  
+  return(freq_model)
+}
+
+
+create_sev_fitter <- function(sev_formula) {
+  sev_model <- glm(sev_formula,
+                   family = Gamma(link = 'log'),
+                   data   = claimdata_tbl)
+  
+  return(sev_model)
+}
+
+
+freq_form <- c("claim_count ~ 1",
+               "claim_count ~ cat_driver_age",
+               "claim_count ~ cat_driver_age + region",
+               "claim_count ~ cat_driver_age + region + fuel",
+               "claim_count ~ cat_driver_age + region + fuel + cat_driver_age:region")
+
+freq_models_tbl <- tibble(freq_form = map(freq_form, as.formula)) %>%
+  mutate(fit_freq_model = map(freq_form, create_freq_fitter, training_tbl = training_tbl))
+
+sev_form <- c("claim_amount ~ 1",
+               "claim_amount ~ region",
+               "claim_amount ~ cat_driver_age",
+               "claim_amount ~ cat_driver_age + region")
+
+sev_models_tbl <- tibble(sev_form = map(sev_form, as.formula)) %>%
+  mutate(fit_sev_model = map(sev_form, create_sev_fitter))
+
+
+allmodels_tbl <- freq_models_tbl %>%
+  mutate(joinid = 1) %>%
+  inner_join(sev_models_tbl %>% mutate(joinid = 1), by = 'joinid') %>%
+  select(-joinid) %>%
+  mutate(pricer = map2(fit_freq_model, fit_sev_model, create_pricing_function)) %>%
+  mutate(price_tbl = map(pricer, exec, policydata_tbl = pricing_policies_tbl)) %>%
+  mutate(freq_form_str = freq_form %>% as.character(),
+         sev_form_str  = sev_form  %>% as.character())
+
+
+mod_unnest_tbl <- allmodels_tbl %>%
+  select(freq_form_str, sev_form_str, price_tbl) %>%
+  unnest(price_tbl)
+
+
+
+```
