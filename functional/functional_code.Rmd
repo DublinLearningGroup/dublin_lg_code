@@ -17,12 +17,10 @@ output:
 
 
 ```{r knit_opts, include = FALSE}
-rm(list = ls())
-
 knitr::opts_chunk$set(tidy       = FALSE,
                       cache      = FALSE,
-                      fig.height =  8,
-                      fig.width  = 11
+                      fig.height =     8,
+                      fig.width  =    11
                      )
 
 library(tidyverse)
@@ -38,14 +36,18 @@ set.seed(42)
 ```{r load_data, echo=TRUE}
 policyclaim_tbl <- read_rds("data/policyclaim_tbl.rds")
 
-claimdata_tbl <- policyclaim_tbl %>%
-  unnest(claim_data) %>%
-  sample_n(500)
+training_tbl <- policyclaim_tbl %>%
+  sample_n(200000) %>%
+  arrange(policy_id)
+
+claimdata_tbl <- training_tbl %>%
+  unnest(claim_data)
 
 
-training_tbl <- policyclaim_tbl %>% sample_n(1000)
 
-pricing_policies_tbl <- policyclaim_tbl %>% sample_n(300)
+pricing_policies_tbl <- policyclaim_tbl %>%
+  anti_join(training_tbl, by = "policy_id") %>% 
+  sample_n(10000)
 ```
 
 
@@ -72,6 +74,7 @@ sev_model_02 <- glm(claim_amount ~ region,
 
 
 create_pricing_function <- function(freq_model, sev_model) {
+  
   price_func <- function(policydata_tbl) {
     freqrate_tbl <- freq_model %>%
       augment(newdata = policydata_tbl, type.predict = "response") %>%
@@ -125,9 +128,9 @@ freq_models_tbl <- tibble(freq_form = map(freq_form, as.formula)) %>%
   mutate(fit_freq_model = map(freq_form, create_freq_fitter, training_tbl = training_tbl))
 
 sev_form <- c("claim_amount ~ 1",
-               "claim_amount ~ region",
-               "claim_amount ~ cat_driver_age",
-               "claim_amount ~ cat_driver_age + region")
+              "claim_amount ~ region",
+              "claim_amount ~ cat_driver_age",
+              "claim_amount ~ cat_driver_age + region")
 
 sev_models_tbl <- tibble(sev_form = map(sev_form, as.formula)) %>%
   mutate(fit_sev_model = map(sev_form, create_sev_fitter))

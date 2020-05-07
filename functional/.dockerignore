@@ -1,0 +1,12 @@
+.Rhistory
+.RData
+.Rproj.user
+
+*.Rmd
+*.html
+
+data/*
+
+.git
+
+.bash*
