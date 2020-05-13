@@ -37,7 +37,7 @@ set.seed(42)
 policyclaim_tbl <- read_rds("data/policyclaim_tbl.rds")
 
 training_tbl <- policyclaim_tbl %>%
-  sample_n(200000) %>%
+  sample_n(20000) %>%
   arrange(policy_id)
 
 claimdata_tbl <- training_tbl %>%
@@ -125,7 +125,7 @@ freq_form <- c("claim_count ~ 1",
                "claim_count ~ cat_driver_age + region + fuel + cat_driver_age:region")
 
 freq_models_tbl <- tibble(freq_form = map(freq_form, as.formula)) %>%
-  mutate(fit_freq_model = map(freq_form, create_freq_fitter, training_tbl = training_tbl))
+  mutate(fit_freq_model = future_map(freq_form, create_freq_fitter, training_tbl = training_tbl))
 
 sev_form <- c("claim_amount ~ 1",
               "claim_amount ~ region",
@@ -141,7 +141,7 @@ allmodels_tbl <- freq_models_tbl %>%
   inner_join(sev_models_tbl %>% mutate(joinid = 1), by = 'joinid') %>%
   select(-joinid) %>%
   mutate(pricer = map2(fit_freq_model, fit_sev_model, create_pricing_function)) %>%
-  mutate(price_tbl = map(pricer, exec, policydata_tbl = pricing_policies_tbl)) %>%
+  mutate(price_tbl     = map(pricer, exec, policydata_tbl = pricing_policies_tbl)) %>%
   mutate(freq_form_str = freq_form %>% as.character(),
          sev_form_str  = sev_form  %>% as.character())
 
@@ -149,7 +149,46 @@ allmodels_tbl <- freq_models_tbl %>%
 mod_unnest_tbl <- allmodels_tbl %>%
   select(freq_form_str, sev_form_str, price_tbl) %>%
   unnest(price_tbl)
+```
+
+
+# Create Simulations
+
+```{r build_simulations, echo=TRUE}
+construct_simulation_data <- function(freq_model, sev_model, policy_tbl, n_sim = 1000) {
+  
+  # illustration_sim_tbl <- freq_model %>%
+  #   augment(newdata = policy_tbl, type.predict = "response") %>%
+  #   select(policy_id, freq_mean = .fitted) %>%
+  #   mutate(sim_count = rpois(n(), lambda = freq_mean))
+
+  create_sim <- ~ rnorm(n_sim, mean = .x, sd = .y) %>%
+    enframe(name = "sim_id", value = "sim_lambda") %>%
+    mutate(sim_lambda = pmax(0.00001, sim_lambda)) %>%
+    mutate(sim_count = rpois(n(), lambda = sim_lambda))
+  
+  
+  freq_sim_tbl <- freq_model %>%
+    augment(newdata = policy_tbl, type.predict = "response") %>%
+    select(policy_id, freq_mean = .fitted, freq_sd = .se.fit) %>%
+    mutate(sim_data = map2(freq_mean, freq_sd, create_sim))
+  
+  return(freq_sim_tbl)
+}
+
+obs_cases <- training_tbl %>% pull(claim_count) %>% sum()
+
+simdata_tbl <- construct_simulation_data(freq_model_02, sev_model_02, training_tbl) %>%
+  select(policy_id, sim_data) %>%
+  unnest(sim_data) %>%
+  group_by(sim_id) %>%
+  summarise(total_cases = sum(sim_count))
+
+ggplot(simdata_tbl) +
+  geom_histogram(aes(x = total_cases), bins = 50) +
+  geom_vline(aes(xintercept = obs_cases), colour = "red")
 
 
 
 ```
+
